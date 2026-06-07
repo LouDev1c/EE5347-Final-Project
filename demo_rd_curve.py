@@ -29,7 +29,7 @@ def run_one_image(image_path: Path, q_values: List[float], result_dir: Path) -> 
         shutil.copyfile("image.recon.png", recon_copy)
 
         points.append((bitrate, psnr_value, image_label))
-        print(f"{image_label:12s} q={q:6g}  R={bitrate:8.4f} bpp  PSNR={psnr_value:8.3f} dB")
+        print(f"{image_label:12s} q={q:6g}  R={bitrate:10.6f} bpp  PSNR={psnr_value:8.3f} dB")
 
     return points
 
@@ -38,7 +38,7 @@ def main() -> None:
     """命令行入口：批量生成 R-D 曲线和 CSV 数据。"""
 
     parser = argparse.ArgumentParser(description="Evaluate R-D curves for several images.")
-    parser.add_argument("images", nargs="+", help="Input image paths.")
+    parser.add_argument("--images", default=["test_images/gradient.png", "test_images/shapes.png", "test_images/texture.png"], nargs="+", help="Input image paths.")
     parser.add_argument("--q", nargs="+", type=float, default=[4, 8, 16, 32, 64], help="Quantization step sizes.")
     parser.add_argument("--out", default="results", help="Output directory.")
     args = parser.parse_args()

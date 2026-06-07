@@ -20,9 +20,9 @@ def main() -> None:
     """命令行入口：读取参数、调用 decoder、打印 PSNR。"""
 
     parser = argparse.ArgumentParser(description="Decode image.bit and compute PSNR.")
-    parser.add_argument("imageBitFileName", help="Path to the compressed bitstream.")
-    parser.add_argument("quantizationStepSize", type=float, help="Quantization step size q.")
-    parser.add_argument("orgImageFileName", help="Path to the original image.")
+    parser.add_argument("--imageBitFileName", default="received_image.bit", help="Path to the compressed bitstream.")
+    parser.add_argument("--quantizationStepSize", default=16, type=float, help="Quantization step size q.")
+    parser.add_argument("--orgImageFileName", default="test_images\gradient.png", help="Path to the original image.")
     args = parser.parse_args()
 
     value = imageDecoder(args.imageBitFileName, args.quantizationStepSize, args.orgImageFileName)
