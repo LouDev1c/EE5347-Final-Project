@@ -16,9 +16,15 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=5001, help="Port to listen on.")
     args = parser.parse_args()
 
-    print(f"Listening on {args.host}:{args.port} ...")
-    output = receive_file(args.output, args.host, args.port)
-    print(f"Received bitstream: {output}")
+    try:
+        print(f"准备监听 {args.host}:{args.port}")
+        output = receive_file(args.output, args.host, args.port)
+        print(f"Received bitstream: {output}")
+    except Exception as e:
+        # 打印异常类型+详情，定位根因
+        print(f"\n===== 程序异常退出 =====")
+        print(f"错误类型: {type(e).__name__}")
+        print(f"错误信息: {str(e)}")
 
 
 if __name__ == "__main__":
