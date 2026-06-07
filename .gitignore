@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+image.bit
+*.recon.png
+received_test.bit
+received_image.bit
+LASTNAME-FIRSTNAME-source.rar

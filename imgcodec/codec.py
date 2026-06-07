@@ -1,0 +1,145 @@
+"""Main encoder and decoder flows for the final project."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Tuple
+
+import numpy as np
+
+from .bitstream import read_bitstream, write_bitstream
+from .dwt53 import dwt2_53, idwt2_53
+from .scan import (
+    inverse_predict_ll_subband,
+    inverse_scan_high_frequency,
+    inverse_scan_ll,
+    lowest_subband_size,
+    predict_ll_subband,
+    scan_high_frequency,
+    scan_ll_residual,
+)
+from .utils import psnr, read_grayscale_image, save_grayscale_image
+
+
+DEFAULT_LEVELS = 5
+DEFAULT_BITSTREAM = "image.bit"
+
+
+def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
+    """Encode a 512x512 grayscale image and write image.bit.
+
+    参数名保留接口形式：
+    Bitrate = imageEncoder(orgImageFileName, quantizationStepSize)
+    """
+
+    print(f"[ENCODER] Start. Image: {orgImageFileName}, q={quantizationStepSize}")
+
+    q_step = float(quantizationStepSize)
+    if q_step <= 0:
+        raise ValueError("quantizationStepSize must be positive.")
+
+    # 第 1 步：读取 512x512 灰度图像。
+    image = read_grayscale_image(orgImageFileName)
+    if image is None:
+        raise ValueError(f"[ERROR] Cannot read image: {orgImageFileName}")
+    if image.shape != (512, 512):
+        raise ValueError(f"[ERROR] Image size must be 512x512, got {image.shape}")
+    print(f"[ENCODER] Image loaded, shape={image.shape}")
+
+    # 第 2 步：做 5-level (5,3) wavelet subband decomposition。
+    coeffs = dwt2_53(image, levels=DEFAULT_LEVELS)
+
+    # 第 3 步：用步长 q 对 DWT 系数量化。
+    quantized = np.rint(coeffs / q_step).astype(np.int32)
+
+    # 第 4 步：对最低频 LL 子带做预测。
+    ll_h, ll_w = lowest_subband_size(quantized.shape, DEFAULT_LEVELS)
+    ll = quantized[:ll_h, :ll_w]
+    ll_residual = predict_ll_subband(ll)
+
+    # 第 5 步：LL 用 raster scan，高频子带用 zero-tree scan。
+    ll_tokens, ll_amplitudes = scan_ll_residual(ll_residual)
+    hf_tokens, hf_amplitudes = scan_high_frequency(quantized, DEFAULT_LEVELS)
+
+    # token 流只包含 zeros、EZT symbols 和 sizes；幅值流保存非零系数的 amplitude。
+    tokens = ll_tokens + hf_tokens
+    amplitudes = ll_amplitudes + hf_amplitudes
+
+    # 第 6、7 步：Huffman 编码并记录 bitrate R(q)。
+    bitrate = write_bitstream(
+        DEFAULT_BITSTREAM,
+        tokens=tokens,
+        amplitudes=amplitudes,
+        image_shape=quantized.shape,
+        levels=DEFAULT_LEVELS,
+        q_step=q_step,
+        ll_token_count=len(ll_tokens),
+        source_name=Path(orgImageFileName).name,
+    )
+
+    return float(bitrate)
+
+
+def imageDecoder(imageBitFileName: str, quantizationStepSize: float, orgImageFileName: str) -> float:
+    """Decode image.bit, reconstruct the image, and return PSNR.
+
+    参数名保留接口形式：
+    PSNR = imageDecoder("image.bit", quantizationStepSize, orgImageFileName)
+    """
+    print(f"[DECODER] Start. Bitstream: {imageBitFileName}, q={quantizationStepSize}")
+    # 读比特流并校验
+    with open(imageBitFileName, "rb") as f:
+        data = f.read()
+    if len(data) == 0:
+        raise ValueError(f"[ERROR] Bitstream file is empty: {imageBitFileName}")
+    print(f"[DECODER] Bitstream size={len(data)} bytes")
+
+    q_step = float(quantizationStepSize)
+    if q_step <= 0:
+        raise ValueError("quantizationStepSize must be positive.")
+
+    # 第 9 步：Huffman decoder 解出 token 流，同时恢复 amplitude 流。
+    header, tokens, amplitudes = read_bitstream(imageBitFileName)
+
+    height = int(header["height"])
+    width = int(header["width"])
+    levels = int(header["levels"])
+    ll_token_count = int(header["ll_token_count"])
+
+    # 文件 header 中也记录了 q；这里检查传入 q 是否一致，避免误解码。
+    stored_q = float(header["q_step"])
+    if abs(stored_q - q_step) > 1e-9:
+        raise ValueError(f"quantizationStepSize={q_step} does not match bitstream q={stored_q}.")
+
+    ll_h, ll_w = lowest_subband_size((height, width), levels)
+
+    # 根据 token 位置拆分 LL 和高频部分。
+    ll_tokens = tokens[:ll_token_count]
+    hf_tokens = tokens[ll_token_count:]
+
+    ll_nonzero_count = sum(1 for token in ll_tokens if token.startswith("S"))
+    ll_amplitudes = amplitudes[:ll_nonzero_count]
+    hf_amplitudes = amplitudes[ll_nonzero_count:]
+
+    # 第 10 步：inverse scan 先恢复量化后的 LL 残差和高频子带。
+    ll_residual = inverse_scan_ll(ll_tokens, ll_amplitudes, (ll_h, ll_w))
+    ll = inverse_predict_ll_subband(ll_residual)
+    quantized = inverse_scan_high_frequency(hf_tokens, hf_amplitudes, (height, width), levels)
+    quantized[:ll_h, :ll_w] = ll
+
+    # 第 11 步：inverse quantization。
+    coeffs = quantized.astype(np.float64) * q_step
+
+    # 第 12 步：inverse DWT 重构图像。
+    recon_img = idwt2_53(coeffs, levels=levels)
+    if recon_img.shape != (512, 512):
+        raise ValueError(f"[ERROR] Reconstructed image shape wrong: {recon_img.shape}")
+    print(f"[DECODER] Reconstructed image shape={recon_img.shape}")
+
+    # 保存重构图像，方便 demo 和报告查看。
+    recon_path = Path(imageBitFileName).with_suffix(".recon.png")
+    save_grayscale_image(recon_img, recon_path)
+
+    # 第 13 步：计算 PSNR D(q)。
+    original = read_grayscale_image(orgImageFileName)
+    return float(psnr(original, recon_img))
