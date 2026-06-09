@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
@@ -10,6 +11,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 TARGET_SIZE = (512, 512)
+TRANS_RESULTS_DIR = Path("trans_results")
+RD_CSV_HEADERS = ("image", "q", "bitrate_bpp", "psnr_db")
 
 
 def read_grayscale_image(path: str | Path, target_size: Tuple[int, int] = TARGET_SIZE) -> np.ndarray:
@@ -30,6 +33,62 @@ def save_grayscale_image(array: np.ndarray, path: str | Path) -> None:
 
     clipped = np.clip(np.rint(array), 0, 255).astype(np.uint8)
     Image.fromarray(clipped, mode="L").save(path)
+
+
+def ensure_trans_results_dir(result_dir: str | Path = TRANS_RESULTS_DIR) -> Path:
+    """确保 trans_results 目录存在并返回其路径。"""
+
+    path = Path(result_dir)
+    path.mkdir(exist_ok=True)
+    return path
+
+
+def bitrate_from_bitstream(bit_path: str | Path, height: int, width: int) -> float:
+    """根据 bit 文件大小计算 bits/pixel。"""
+
+    total_bits = Path(bit_path).stat().st_size * 8
+    return total_bits / float(height * width)
+
+
+def append_trans_rd_row(
+    image: str,
+    q: float,
+    bitrate_bpp: float,
+    psnr_db: float,
+    result_dir: str | Path = TRANS_RESULTS_DIR,
+) -> Path:
+    """向 trans_results/rd_results.csv 追加一行 R-D 记录。"""
+
+    directory = ensure_trans_results_dir(result_dir)
+    csv_path = directory / "rd_results.csv"
+    write_header = not csv_path.exists()
+
+    with csv_path.open("a", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        if write_header:
+            writer.writerow(RD_CSV_HEADERS)
+        writer.writerow([image, f"{q:.8f}", f"{bitrate_bpp:.8f}", f"{psnr_db:.8f}"])
+
+    return csv_path
+
+
+def load_rd_csv_points(csv_path: str | Path) -> List[Tuple[float, float, str]]:
+    """从 rd_results.csv 读取 (bitrate, psnr, image) 点，供 R-D 曲线绘制。"""
+
+    csv_path = Path(csv_path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"R-D CSV not found: {csv_path.resolve()}")
+
+    points: List[Tuple[float, float, str]] = []
+    with csv_path.open(newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            points.append((float(row["bitrate_bpp"]), float(row["psnr_db"]), row["image"]))
+
+    if not points:
+        raise ValueError(f"No R-D points found in {csv_path.resolve()}.")
+
+    return points
 
 
 def psnr(original: np.ndarray, reconstructed: np.ndarray) -> float:

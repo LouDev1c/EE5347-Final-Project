@@ -80,7 +80,12 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
     return float(bitrate)
 
 
-def imageDecoder(imageBitFileName: str, quantizationStepSize: float, orgImageFileName: str) -> float:
+def imageDecoder(
+    imageBitFileName: str,
+    quantizationStepSize: float,
+    orgImageFileName: str,
+    recon_path: str | Path | None = None,
+) -> float:
     """Decode image.bit, reconstruct the image, and return PSNR.
 
     参数名保留接口形式：
@@ -137,8 +142,11 @@ def imageDecoder(imageBitFileName: str, quantizationStepSize: float, orgImageFil
     print(f"[DECODER] Reconstructed image shape={recon_img.shape}")
 
     # 保存重构图像，方便 demo 和报告查看。
-    recon_path = Path(imageBitFileName).with_suffix(".recon.png")
-    save_grayscale_image(recon_img, recon_path)
+    if recon_path is None:
+        recon_output = Path(imageBitFileName).with_suffix(".recon.png")
+    else:
+        recon_output = Path(recon_path)
+    save_grayscale_image(recon_img, recon_output)
 
     # 第 13 步：计算 PSNR D(q)。
     original = read_grayscale_image(orgImageFileName)

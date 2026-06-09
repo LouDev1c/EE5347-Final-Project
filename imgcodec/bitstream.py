@@ -139,6 +139,22 @@ def write_bitstream(
     return total_bits / float(image_shape[0] * image_shape[1])
 
 
+def read_bitstream_header(path: str | Path) -> Dict[str, object]:
+    """只读取 image.bit 的 JSON header，不解码 Huffman 载荷。"""
+
+    path = Path(path)
+    data = path.read_bytes()
+
+    if not data.startswith(MAGIC):
+        raise ValueError("Input file is not an IVCNC image bitstream.")
+
+    offset = len(MAGIC)
+    header_length = int.from_bytes(data[offset : offset + 4], byteorder="big", signed=False)
+    offset += 4
+
+    return json.loads(data[offset : offset + header_length].decode("utf-8"))
+
+
 def read_bitstream(path: str | Path) -> Tuple[Dict[str, object], List[str], List[int]]:
     """读取 image.bit，返回 header、token 序列和幅值序列。"""
 
