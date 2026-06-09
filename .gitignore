@@ -4,5 +4,5 @@ image.bit
 *.recon.png
 received_test.bit
 received_image.bit
-trans_results/
+!trans_results/
 LASTNAME-FIRSTNAME-source.rar
