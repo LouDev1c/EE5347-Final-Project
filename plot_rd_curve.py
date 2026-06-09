@@ -1,7 +1,7 @@
 """Plot R-D curves from trans_results/rd_results.csv.
 
 本脚本只负责读取 CSV 并绘制 R-D 曲线，不负责编码、传输或解码。
-双机演示时，接收端通过 receive_image.py 逐次收图并填充 CSV；
+双机演示时，接收端通过 receive_decode.py 逐次收图并填充 CSV；
 全部收完后，在任意一台机器上运行本脚本生成曲线图。
 """
 

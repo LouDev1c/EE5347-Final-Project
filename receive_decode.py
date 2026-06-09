@@ -25,7 +25,6 @@ from imgcodec.utils import (
 
 def resolve_org_image(org_image: str | None, image_label: str) -> Path:
     """确定用于 PSNR 计算的原图路径。"""
-
     if org_image:
         path = Path(org_image)
         if not path.exists():
@@ -82,22 +81,11 @@ def receive_decode_and_record(
 
 def main() -> None:
     """命令行 receiver：接收一张图并完成解码与 R-D 记录。"""
-
-    parser = argparse.ArgumentParser(
-        description="Receive one compressed image, decode it, and append R-D metrics to CSV."
-    )
-    parser.add_argument(
-        "--org-image",
-        default=None,
-        help="Path to the original image for PSNR. Defaults to test_images/<image>.png if present.",
-    )
+    parser = argparse.ArgumentParser(description="Receive one compressed image, decode it, and append R-D metrics to CSV.")
+    parser.add_argument("--org-image", default=None, help="Path to the original image for PSNR. Defaults to test_images/<image>.png if present.",)
     parser.add_argument("--host", default="0.0.0.0", help="Host/interface to listen on.")
     parser.add_argument("--port", type=int, default=5001, help="Port to listen on.")
-    parser.add_argument(
-        "--out",
-        default=str(TRANS_RESULTS_DIR),
-        help="Output directory for bit files, recon images, and rd_results.csv.",
-    )
+    parser.add_argument("--out", default=str(TRANS_RESULTS_DIR), help="Output directory for bit files, recon images, and rd_results.csv.",)
     args = parser.parse_args()
 
     try:
