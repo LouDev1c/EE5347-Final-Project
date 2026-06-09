@@ -19,8 +19,8 @@ def main() -> None:
     """命令行入口：读取参数、调用 encoder、打印 bitrate。"""
 
     parser = argparse.ArgumentParser(description="Encode a grayscale image into image.bit.")
-    parser.add_argument("--orgImageFileName", help="Path to the original image.")
-    parser.add_argument("--quantizationStepSize", type=float, help="Quantization step size q.")
+    parser.add_argument("--orgImageFileName", default="test_images/bird.png", help="Path to the original image.")
+    parser.add_argument("--quantizationStepSize", default=0.1, type=float, help="Quantization step size q.")
     args = parser.parse_args()
 
     bitrate = imageEncoder(args.orgImageFileName, args.quantizationStepSize)
