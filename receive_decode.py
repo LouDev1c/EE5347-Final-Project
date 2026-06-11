@@ -20,7 +20,7 @@ def receive_decode_and_record(
 
     # 1. 先接收文件到最终比特流路径（取消临时文件中转）
     # 先读头部获取信息，再命名；这里沿用原逻辑：先存临时再改名（如需彻底优化可再改）
-    temp_bit = Path(result_dir) / "_incoming.bit"
+    temp_bit = Path(result_dir) / f"_incoming.bit"
     receive_file(temp_bit, host, port)
 
     # 2. 解析码流头部参数
@@ -30,14 +30,14 @@ def receive_decode_and_record(
     img_label = Path(header["source_name"]).stem
 
     # 3. 重命名比特流文件
-    bit_file = result_dir / f"{img_label}_q{q_step:g}.bit"
+    bit_file = Path(result_dir) / f"{img_label}_q{q_step:g}.bit"
     if bit_file.exists():
         bit_file.unlink()
     temp_bit.replace(bit_file)
 
     # 4. 读取原图 + 解码重建图像
     org_file = Path("test_images") / f"{img_label}.png"
-    recon_file = result_dir / f"{img_label}_q{q_step:g}_recon.png"
+    recon_file = Path(result_dir) / f"{img_label}_q{q_step:g}_recon.png"
 
     # 5. 计算 PSNR、码率，写入CSV
     psnr = imageDecoder(str(bit_file), q_step, str(org_file), recon_path=recon_file)
