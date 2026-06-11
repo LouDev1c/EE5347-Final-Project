@@ -1,6 +1,4 @@
-"""Main encoder and decoder flows for the final project."""
-
-from __future__ import annotations
+# 将编码与解码的流程整合为 imageEncoder 和 imageDecoder 两个函数
 
 from pathlib import Path
 
@@ -48,7 +46,7 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
     coeffs = dwt2_53(image, levels=DEFAULT_LEVELS)
 
     # 第 3 步：用步长 q 对 DWT 系数量化。
-    quantized = np.rint(coeffs / q_step).astype(np.int32)
+    quantized = np.floor(coeffs / q_step).astype(np.int32)
 
     # 第 4 步：对最低频 LL 子带做预测。
     ll_h, ll_w = lowest_subband_size(quantized.shape, DEFAULT_LEVELS)
