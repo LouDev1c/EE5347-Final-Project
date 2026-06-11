@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from .bitstream import read_bitstream, write_bitstream
-from .dwt53 import dwt, idwt
+from .dwt import dwt_2d, idwt_2d
 from .scan import (
     inverse_predict_ll_subband,
     inverse_scan_high_frequency,
@@ -19,15 +19,13 @@ from PIL import Image
 
 DEFAULT_LEVELS = 5
 DEFAULT_BITSTREAM = "image.bit"
+factor = np.sqrt(2.0)
+# 定义分析滤波器
+H_0 = np.array([-0.125, 0.25, 0.75, 0.25, -0.125], dtype=np.float64) * factor
+H_1 = np.array([-0.5, 1.0, -0.5], dtype=np.float64) * factor
 
 
 def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
-    """Encode a 512x512 grayscale image and write image.bit.
-
-    参数名保留接口形式：
-    Bitrate = imageEncoder(orgImageFileName, quantizationStepSize)
-    """
-
     print(f"[ENCODER] Start. Image: {orgImageFileName}, q={quantizationStepSize}")
 
     q_step = float(quantizationStepSize)
@@ -43,7 +41,7 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
     print(f"[ENCODER] Image loaded, shape={image.shape}")
 
     # 第 2 步：做 5-level (5,3) wavelet subband decomposition。
-    coeffs = dwt(image, levels=DEFAULT_LEVELS)
+    coeffs = dwt_2d(np.array(image, dtype=np.float64), 5, H_0=H_0, H_1=H_1)
 
     # 第 3 步：用步长 q 对 DWT 系数量化。
     quantized = np.sign(coeffs) * np.floor(np.abs(coeffs) / q_step)
@@ -153,7 +151,7 @@ def imageDecoder(
     print(f"反量化后非零系数数量: {np.count_nonzero(coeffs)}")
 
     # 第 12 步：inverse DWT 重构图像。
-    recon_img = idwt(coeffs, levels=levels)
+    recon_img = idwt_2d(coeffs, num=5, G_0=G_0, G_1=G_1)
     if recon_img.shape != (512, 512):
         raise ValueError(f"[ERROR] Reconstructed image shape wrong: {recon_img.shape}")
     print(f"[DECODER] Reconstructed image shape={recon_img.shape}")
