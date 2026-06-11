@@ -44,24 +44,22 @@ def predict_ll_subband(ll: np.ndarray) -> np.ndarray:
     """
 
     residual = np.zeros_like(ll, dtype=np.int32)
-
-    for r in range(ll.shape[0]):
-        for c in range(ll.shape[1]):
-            # 第一行第一列没有历史样本，预测值设为 0。
+    h, w = ll.shape
+    for r in range(h):
+        for c in range(w):
             if r == 0 and c == 0:
-                prediction = 0
-            # 第一行只能使用左邻。
+                pred = 0
             elif r == 0:
-                prediction = int(ll[r, c - 1])
-            # 第一列只能使用上邻。
+                pred = ll[r, c - 1]
             elif c == 0:
-                prediction = int(ll[r - 1, c])
-            # 其他位置使用左邻和上邻的平均值，round 后保持整数预测。
+                pred = ll[r - 1, c]
             else:
-                prediction = int(round((int(ll[r, c - 1]) + int(ll[r - 1, c])) / 2.0))
-
-            residual[r, c] = int(ll[r, c]) - prediction
-
+                # 标准二维预测: A + B - C
+                A = ll[r, c - 1]
+                B = ll[r - 1, c]
+                C = ll[r - 1, c - 1]
+                pred = A + B - C
+            residual[r, c] = ll[r, c] - pred
     return residual
 
 
@@ -69,20 +67,21 @@ def inverse_predict_ll_subband(residual: np.ndarray) -> np.ndarray:
     """根据 DPCM 残差恢复最低频 LL 子带。"""
 
     ll = np.zeros_like(residual, dtype=np.int32)
-
-    for r in range(residual.shape[0]):
-        for c in range(residual.shape[1]):
+    h, w = residual.shape
+    for r in range(h):
+        for c in range(w):
             if r == 0 and c == 0:
-                prediction = 0
+                pred = 0
             elif r == 0:
-                prediction = int(ll[r, c - 1])
+                pred = ll[r, c - 1]
             elif c == 0:
-                prediction = int(ll[r - 1, c])
+                pred = ll[r - 1, c]
             else:
-                prediction = int(round((int(ll[r, c - 1]) + int(ll[r - 1, c])) / 2.0))
-
-            ll[r, c] = int(residual[r, c]) + prediction
-
+                A = ll[r, c - 1]
+                B = ll[r - 1, c]
+                C = ll[r - 1, c - 1]
+                pred = A + B - C
+            ll[r, c] = residual[r, c] + pred
     return ll
 
 
@@ -214,21 +213,23 @@ def subtree_positions(pos: SubbandPosition) -> List[SubbandPosition]:
     """返回某个位置的全部后代位置，不包括它自己。"""
 
     result: List[SubbandPosition] = []
-    stack = descendants(pos)
-    while stack:
-        child = stack.pop()
+    q = deque(descendants(pos))
+    while q:
+        child = q.popleft()
         result.append(child)
-        stack.extend(descendants(child))
+        q.extend(descendants(child))
     return result
 
 
 def subtree_all_zero(coeffs: np.ndarray, pos: SubbandPosition) -> bool:
     """判断当前位置的所有后代是否全为 0。"""
-
+    if pos.level <= 1:
+        return False
     shape = coeffs.shape
-    for child in subtree_positions(pos):
-        gr, gc = position_to_global(shape, child)
-        if int(coeffs[gr, gc]) != 0:
+    all_children = subtree_positions(pos)
+    for child in all_children:
+        r, c = position_to_global(shape, child)
+        if coeffs[r, c] != 0:
             return False
     return True
 

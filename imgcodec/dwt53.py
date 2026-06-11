@@ -3,7 +3,7 @@
 import numpy as np
 
 
-def _forward_53_1d(signal: np.ndarray) -> np.ndarray:
+def dwt_1d(signal: np.ndarray) -> np.ndarray:
     """对一维序列做一次 5/3 小波正变换。
 
     输入序列被分成偶数位置样本 even 和奇数位置样本 odd。
@@ -39,7 +39,7 @@ def _forward_53_1d(signal: np.ndarray) -> np.ndarray:
     return np.concatenate([smooth, detail])
 
 
-def _inverse_53_1d(coeff: np.ndarray) -> np.ndarray:
+def idwt_1d(coeff: np.ndarray) -> np.ndarray:
     """对一维 5/3 小波系数做一次反变换。
 
     反变换严格按照 lifting 的相反顺序执行：
@@ -76,7 +76,7 @@ def _inverse_53_1d(coeff: np.ndarray) -> np.ndarray:
     return x
 
 
-def _forward_53_2d_one_level(block: np.ndarray) -> np.ndarray:
+def dwt_2d_1l(block: np.ndarray) -> np.ndarray:
     """对一个二维块做一级 5/3 小波分解。
 
     先沿每一行做一维变换，再沿每一列做一维变换。
@@ -86,15 +86,15 @@ def _forward_53_2d_one_level(block: np.ndarray) -> np.ndarray:
 
     temp = np.empty_like(block, dtype=np.float64)
     for r in range(block.shape[0]):
-        temp[r, :] = _forward_53_1d(block[r, :])
+        temp[r, :] = dwt_1d(block[r, :])
 
     out = np.empty_like(temp, dtype=np.float64)
     for c in range(temp.shape[1]):
-        out[:, c] = _forward_53_1d(temp[:, c])
+        out[:, c] = dwt_1d(temp[:, c])
     return out
 
 
-def _inverse_53_2d_one_level(block: np.ndarray) -> np.ndarray:
+def idwt_2d_1l(block: np.ndarray) -> np.ndarray:
     """对一个二维块做一级 5/3 小波重构。
 
     反变换顺序与正变换相反：先按列反变换，再按行反变换。
@@ -102,15 +102,15 @@ def _inverse_53_2d_one_level(block: np.ndarray) -> np.ndarray:
 
     temp = np.empty_like(block, dtype=np.float64)
     for c in range(block.shape[1]):
-        temp[:, c] = _inverse_53_1d(block[:, c])
+        temp[:, c] = idwt_1d(block[:, c])
 
     out = np.empty_like(temp, dtype=np.float64)
     for r in range(temp.shape[0]):
-        out[r, :] = _inverse_53_1d(temp[r, :])
+        out[r, :] = idwt_1d(temp[r, :])
     return out
 
 
-def dwt2_53(image: np.ndarray, levels: int = 5) -> np.ndarray:
+def dwt(image: np.ndarray, levels: int = 5) -> np.ndarray:
     """对灰度图像做多级 5/3 DWT 分解。
 
     每一级只继续分解当前左上角 LL 子带。
@@ -126,12 +126,12 @@ def dwt2_53(image: np.ndarray, levels: int = 5) -> np.ndarray:
         w = width // (2**level)
 
         # 只替换左上角区域，其他高频子带保持不动。
-        coeffs[:h, :w] = _forward_53_2d_one_level(coeffs[:h, :w])
+        coeffs[:h, :w] = dwt_2d_1l(coeffs[:h, :w])
 
     return coeffs
 
 
-def idwt2_53(coeffs: np.ndarray, levels: int = 5) -> np.ndarray:
+def idwt(coeffs: np.ndarray, levels: int = 5) -> np.ndarray:
     """对多级 5/3 DWT 系数做反变换，重构灰度图像。"""
 
     image = coeffs.astype(np.float64, copy=True)
@@ -141,6 +141,6 @@ def idwt2_53(coeffs: np.ndarray, levels: int = 5) -> np.ndarray:
     for level in range(levels, 0, -1):
         h = height // (2 ** (level - 1))
         w = width // (2 ** (level - 1))
-        image[:h, :w] = _inverse_53_2d_one_level(image[:h, :w])
+        image[:h, :w] = idwt_2d_1l(image[:h, :w])
 
     return image

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from .bitstream import read_bitstream, write_bitstream
-from .dwt53 import dwt2_53, idwt2_53
+from .dwt53 import dwt, idwt
 from .scan import (
     inverse_predict_ll_subband,
     inverse_scan_high_frequency,
@@ -43,7 +43,7 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
     print(f"[ENCODER] Image loaded, shape={image.shape}")
 
     # 第 2 步：做 5-level (5,3) wavelet subband decomposition。
-    coeffs = dwt2_53(image, levels=DEFAULT_LEVELS)
+    coeffs = dwt(image, levels=DEFAULT_LEVELS)
 
     # 第 3 步：用步长 q 对 DWT 系数量化。
     quantized = np.rint(coeffs / q_step).astype(np.int32)
@@ -150,7 +150,7 @@ def imageDecoder(
     coeffs = quantized.astype(np.float64) * q_step
 
     # 第 12 步：inverse DWT 重构图像。
-    recon_img = idwt2_53(coeffs, levels=levels)
+    recon_img = idwt(coeffs, levels=levels)
     if recon_img.shape != (512, 512):
         raise ValueError(f"[ERROR] Reconstructed image shape wrong: {recon_img.shape}")
     print(f"[DECODER] Reconstructed image shape={recon_img.shape}")
