@@ -20,9 +20,6 @@ from PIL import Image
 DEFAULT_LEVELS = 5
 DEFAULT_BITSTREAM = "image.bit"
 factor = np.sqrt(2.0)
-# 定义分析滤波器
-H_0 = np.array([-0.125, 0.25, 0.75, 0.25, -0.125], dtype=np.float64) * factor
-H_1 = np.array([-0.5, 1.0, -0.5], dtype=np.float64) * factor
 
 
 def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
@@ -41,6 +38,8 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
     print(f"[ENCODER] Image loaded, shape={image.shape}")
 
     # 第 2 步：做 5-level (5,3) wavelet subband decomposition。
+    H_0 = np.array([-0.125, 0.25, 0.75, 0.25, -0.125], dtype=np.float64) * factor
+    H_1 = np.array([-0.5, 1.0, -0.5], dtype=np.float64) * factor
     coeffs = dwt_2d(np.array(image, dtype=np.float64), 5, H_0=H_0, H_1=H_1)
 
     # 第 3 步：用步长 q 对 DWT 系数量化。
@@ -151,6 +150,8 @@ def imageDecoder(
     print(f"反量化后非零系数数量: {np.count_nonzero(coeffs)}")
 
     # 第 12 步：inverse DWT 重构图像。
+    G_0 = np.array([0.5, 1.0, 0.5], dtype=np.float64) / factor
+    G_1 = np.array([-0.125, -0.25, 0.75, -0.25, -0.125], dtype=np.float64) / factor
     recon_img = idwt_2d(coeffs, num=5, G_0=G_0, G_1=G_1)
     if recon_img.shape != (512, 512):
         raise ValueError(f"[ERROR] Reconstructed image shape wrong: {recon_img.shape}")
