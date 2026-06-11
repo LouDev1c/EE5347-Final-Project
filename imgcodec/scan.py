@@ -6,11 +6,9 @@
 - 高频子带使用 zero-tree scan，并产生 zero、EZT、non-zero tokens；
 - 解码端根据同样的扫描顺序做 inverse scan。
 """
-
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
+from collections import deque
 
 import numpy as np
 
