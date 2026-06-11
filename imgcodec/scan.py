@@ -214,13 +214,11 @@ def subtree_positions(pos: SubbandPosition) -> List[SubbandPosition]:
     """返回某个位置的全部后代位置，不包括它自己。"""
 
     result: List[SubbandPosition] = []
-    from collections import deque
-    q = deque(descendants(pos))
-    while q:
-        child = q.popleft()
+    stack = descendants(pos)
+    while stack:
+        child = stack.pop()
         result.append(child)
-        result.extend(descendants(child))
-        q.extend(descendants(child))
+        stack.extend(descendants(child))
     return result
 
 
@@ -228,14 +226,9 @@ def subtree_all_zero(coeffs: np.ndarray, pos: SubbandPosition) -> bool:
     """判断当前位置的所有后代是否全为 0。"""
 
     shape = coeffs.shape
-    # 先判断自身（冗余但加固逻辑）
-    gr, gc = position_to_global(shape, pos)
-    if abs(int(coeffs[gr, gc])) > 0:
-        return False
-    # 再判断所有后代
     for child in subtree_positions(pos):
         gr, gc = position_to_global(shape, child)
-        if abs(int(coeffs[gr, gc])) > 0:
+        if int(coeffs[gr, gc]) != 0:
             return False
     return True
 
