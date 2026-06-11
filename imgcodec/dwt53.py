@@ -1,11 +1,4 @@
-"""5/3 wavelet transform used by the image encoder and decoder.
-
-本文件实现 CDF (5, 3) 小波的 lifting 形式。
-课程要求使用 5-level subband decomposition using the (5, 3) wavelet，
-所以这里提供二维多层正变换和反变换，并保持系数布局为常见的子带拼接格式。
-"""
-
-from __future__ import annotations
+# 实现 CDF (5, 3) 小波的 lifting 形式。课程要求使用 5-level subband decomposition using the (5, 3) wavelet，所以这里提供二维多层正变换和反变换，并保持系数布局为常见的子带拼接格式。
 
 import numpy as np
 

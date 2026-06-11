@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 
@@ -18,8 +17,7 @@ from .scan import (
     scan_high_frequency,
     scan_ll_residual,
 )
-from .utils import psnr, read_grayscale_image, save_grayscale_image
-
+from PIL import Image
 
 DEFAULT_LEVELS = 5
 DEFAULT_BITSTREAM = "image.bit"
@@ -39,7 +37,7 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
         raise ValueError("quantizationStepSize must be positive.")
 
     # 第 1 步：读取 512x512 灰度图像。
-    image = read_grayscale_image(orgImageFileName)
+    image = np.asarray(Image.open(orgImageFileName).convert("L"), dtype=np.float64)
     if image is None:
         raise ValueError(f"[ERROR] Cannot read image: {orgImageFileName}")
     if image.shape != (512, 512):
@@ -78,6 +76,24 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
     )
 
     return float(bitrate)
+
+
+def psnr(original: np.ndarray, reconstructed: np.ndarray) -> float:
+    # 计算 PSNR，单位 dB
+
+    original = original.astype(np.float64, copy=False)
+    reconstructed = reconstructed.astype(np.float64, copy=False)
+    mse = np.mean((original - reconstructed) ** 2)
+    if mse == 0:
+        return float("inf")
+    return 10.0 * np.log10((255.0**2) / mse)
+
+
+def save_grayscale_image(array: np.ndarray, path: str | Path) -> None:
+    """把重构数组裁剪到 [0,255] 并保存为 8-bit 灰度图。"""
+
+    clipped = np.clip(np.rint(array), 0, 255).astype(np.uint8)
+    Image.fromarray(clipped, mode="L").save(path)
 
 
 def imageDecoder(
@@ -149,5 +165,5 @@ def imageDecoder(
     save_grayscale_image(recon_img, recon_output)
 
     # 第 13 步：计算 PSNR D(q)。
-    original = read_grayscale_image(orgImageFileName)
+    original = np.asarray(Image.open(orgImageFileName).convert("L"), dtype=np.float64)
     return float(psnr(original, recon_img))

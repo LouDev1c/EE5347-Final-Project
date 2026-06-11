@@ -1,11 +1,4 @@
-"""Receive a compressed image bitstream, decode it, and record R-D metrics.
-
-双机演示时，接收端每次运行本脚本接收一张图：
-1. 通过 socket 接收 sender 发来的 bitstream；
-2. 根据 bitstream header 中的 source_name 和 q 命名保存文件；
-3. 解码并保存重构图像；
-4. 将 image / q / bitrate_bpp / psnr_db 追加写入 trans_results/rd_results.csv。
-"""
+# 该程序用于接收比特流并解码图像
 
 from __future__ import annotations
 
@@ -15,86 +8,58 @@ from pathlib import Path
 from imgcodec.bitstream import read_bitstream_header
 from imgcodec.codec import imageDecoder
 from imgcodec.network import receive_file
-from imgcodec.utils import (
-    TRANS_RESULTS_DIR,
-    append_trans_rd_row,
-    bitrate_from_bitstream,
-    ensure_trans_results_dir,
-)
-
-
-def resolve_org_image(org_image: str | None, image_label: str) -> Path:
-    """确定用于 PSNR 计算的原图路径。"""
-    if org_image:
-        path = Path(org_image)
-        if not path.exists():
-            raise FileNotFoundError(f"Original image not found: {path.resolve()}")
-        return path
-
-    default_path = Path("test_images") / f"{image_label}.png"
-    if default_path.exists():
-        return default_path
-
-    raise FileNotFoundError(
-        "Original image path is required. Pass --org-image or place "
-        f"{default_path} on the receiver machine."
-    )
+from imgcodec.dv_utils import RESULTS_DIR, append_rd_row
 
 
 def receive_decode_and_record(
-    org_image: str | None,
     host: str,
     port: int,
-    result_dir: str | Path = TRANS_RESULTS_DIR,
+    result_dir: str | Path = RESULTS_DIR,
 ) -> None:
-    """接收一张图，保存 bit/recon 文件，并追加 R-D 记录。"""
+    """接收码流、解码重建、计算指标并写入R-D表格（固定原图路径）"""
 
-    directory = ensure_trans_results_dir(result_dir)
-    incoming_path = directory / "_incoming.bit"
+    # 1. 先接收文件到最终比特流路径（取消临时文件中转）
+    # 先读头部获取信息，再命名；这里沿用原逻辑：先存临时再改名（如需彻底优化可再改）
+    temp_bit = result_dir / "_incoming.bit"
+    receive_file(temp_bit, host, port)
 
-    receive_file(incoming_path, host, port)
-
-    header = read_bitstream_header(incoming_path)
+    # 2. 解析码流头部参数
+    header = read_bitstream_header(temp_bit)
     q_step = float(header["q_step"])
-    height = int(header["height"])
-    width = int(header["width"])
-    image_label = Path(str(header["source_name"])).stem
+    h, w = int(header["height"]), int(header["width"])
+    img_label = Path(header["source_name"]).stem
 
-    bit_path = directory / f"{image_label}_q{q_step:g}.bit"
-    if bit_path.exists():
-        bit_path.unlink()
-    incoming_path.replace(bit_path)
+    # 3. 重命名比特流文件
+    bit_file = result_dir / f"{img_label}_q{q_step:g}.bit"
+    if bit_file.exists():
+        bit_file.unlink()
+    temp_bit.replace(bit_file)
 
-    org_path = resolve_org_image(org_image, image_label)
-    recon_path = directory / f"{image_label}_q{q_step:g}_recon.png"
+    # 4. 读取原图 + 解码重建图像
+    org_file = Path("test_images") / f"{img_label}.png"
+    recon_file = result_dir / f"{img_label}_q{q_step:g}_recon.png"
 
-    psnr_value = imageDecoder(str(bit_path), q_step, str(org_path), recon_path=recon_path)
-    bitrate = bitrate_from_bitstream(bit_path, height, width)
-    csv_path = append_trans_rd_row(image_label, q_step, bitrate, psnr_value, directory)
+    # 5. 计算 PSNR、码率，写入CSV
+    psnr = imageDecoder(str(bit_file), q_step, str(org_file), recon_path=recon_file)
+    bpp = Path(bit_file).stat().st_size * 8 / float(h * w)
+    csv_file = append_rd_row(img_label, q_step, bpp, psnr, result_dir)
 
-    print(f"[RECV] Saved bitstream: {bit_path.resolve()}")
-    print(f"[RECV] Saved reconstruction: {recon_path.resolve()}")
-    print(f"[RECV] Bitrate R(q) = {bitrate:.6f} bits/pixel")
-    print(f"[RECV] PSNR D(q) = {psnr_value:.4f} dB")
-    print(f"[RECV] Appended row to {csv_path.resolve()}")
+    # 6. 控制台输出
+    print(f"[接收] 码流文件：{bit_file.resolve()}")
+    print(f"[接收] 重建图像：{recon_file.resolve()}")
+    print(f"码率 R = {bpp:.6f} bpp")
+    print(f"PSNR = {psnr:.4f} dB")
+    print(f"数据已写入：{csv_file.resolve()}")
 
 
 def main() -> None:
-    """命令行 receiver：接收一张图并完成解码与 R-D 记录。"""
     parser = argparse.ArgumentParser(description="Receive one compressed image, decode it, and append R-D metrics to CSV.")
-    parser.add_argument("--org-image", default=None, help="Path to the original image for PSNR. Defaults to test_images/<image>.png if present.",)
-    parser.add_argument("--host", default="0.0.0.0", help="Host/interface to listen on.")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to listen on.")
     parser.add_argument("--port", type=int, default=5001, help="Port to listen on.")
-    parser.add_argument("--out", default=str(TRANS_RESULTS_DIR), help="Output directory for bit files, recon images, and rd_results.csv.",)
+    parser.add_argument("--out", default=str(RESULTS_DIR), help="Output directory for bit files, recon images, and rd_results.csv.",)
     args = parser.parse_args()
 
-    try:
-        receive_decode_and_record(args.org_image, args.host, args.port, args.out)
-    except Exception as exc:
-        print("\n===== 程序异常退出 =====")
-        print(f"错误类型: {type(exc).__name__}")
-        print(f"错误信息: {exc}")
-        raise SystemExit(1) from exc
+    receive_decode_and_record(args.host, args.port, args.out)
 
 
 if __name__ == "__main__":

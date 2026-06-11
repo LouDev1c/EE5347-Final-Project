@@ -6,61 +6,21 @@ import csv
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
-
-TARGET_SIZE = (512, 512)
-TRANS_RESULTS_DIR = Path("trans_results")
+RESULTS_DIR = Path("results")
 RD_CSV_HEADERS = ("image", "q", "bitrate_bpp", "psnr_db")
 
-
-def read_grayscale_image(path: str | Path, target_size: Tuple[int, int] = TARGET_SIZE) -> np.ndarray:
-    """读取图像，转成 512x512 灰度 numpy 数组。
-
-    老师要求输入为 512x512 grayscale image。
-    为了演示时更稳，如果输入不是 512x512，本函数会自动缩放到目标尺寸。
-    """
-
-    image = Image.open(path).convert("L")
-    if image.size != target_size:
-        image = image.resize(target_size, Image.Resampling.LANCZOS)
-    return np.asarray(image, dtype=np.float64)
-
-
-def save_grayscale_image(array: np.ndarray, path: str | Path) -> None:
-    """把重构数组裁剪到 [0,255] 并保存为 8-bit 灰度图。"""
-
-    clipped = np.clip(np.rint(array), 0, 255).astype(np.uint8)
-    Image.fromarray(clipped, mode="L").save(path)
-
-
-def ensure_trans_results_dir(result_dir: str | Path = TRANS_RESULTS_DIR) -> Path:
-    """确保 trans_results 目录存在并返回其路径。"""
-
-    path = Path(result_dir)
-    path.mkdir(exist_ok=True)
-    return path
-
-
-def bitrate_from_bitstream(bit_path: str | Path, height: int, width: int) -> float:
-    """根据 bit 文件大小计算 bits/pixel。"""
-
-    total_bits = Path(bit_path).stat().st_size * 8
-    return total_bits / float(height * width)
-
-
-def append_trans_rd_row(
+# 在 .csv 表格当中新增一行内容
+def append_rd_row(
     image: str,
     q: float,
     bitrate_bpp: float,
     psnr_db: float,
-    result_dir: str | Path = TRANS_RESULTS_DIR,
+    result_dir: str | Path = RESULTS_DIR,
 ) -> Path:
-    """向 trans_results/rd_results.csv 追加一行 R-D 记录。"""
 
-    directory = ensure_trans_results_dir(result_dir)
-    csv_path = directory / "rd_results.csv"
+    csv_path = result_dir / "rd_results.csv"
     write_header = not csv_path.exists()
 
     with csv_path.open("a", newline="", encoding="utf-8") as file:
@@ -71,13 +31,9 @@ def append_trans_rd_row(
 
     return csv_path
 
-
+# 从 rd_results.csv 读取 (bitrate, psnr, image) 点，供 R-D 曲线绘制
 def load_rd_csv_points(csv_path: str | Path) -> List[Tuple[float, float, str]]:
-    """从 rd_results.csv 读取 (bitrate, psnr, image) 点，供 R-D 曲线绘制。"""
-
     csv_path = Path(csv_path)
-    if not csv_path.exists():
-        raise FileNotFoundError(f"R-D CSV not found: {csv_path.resolve()}")
 
     points: List[Tuple[float, float, str]] = []
     with csv_path.open(newline="", encoding="utf-8") as file:
@@ -85,30 +41,10 @@ def load_rd_csv_points(csv_path: str | Path) -> List[Tuple[float, float, str]]:
         for row in reader:
             points.append((float(row["bitrate_bpp"]), float(row["psnr_db"]), row["image"]))
 
-    if not points:
-        raise ValueError(f"No R-D points found in {csv_path.resolve()}.")
-
     return points
 
-
-def psnr(original: np.ndarray, reconstructed: np.ndarray) -> float:
-    """计算 PSNR，单位 dB。"""
-
-    original = original.astype(np.float64, copy=False)
-    reconstructed = reconstructed.astype(np.float64, copy=False)
-    mse = np.mean((original - reconstructed) ** 2)
-    if mse == 0:
-        return float("inf")
-    return 10.0 * np.log10((255.0**2) / mse)
-
-
+# 绘制 R-D 曲线图
 def draw_rd_curve(points: Sequence[Tuple[float, float, str]], output_path: str | Path) -> None:
-    """使用 Pillow 绘制简单 R-D 曲线图。
-
-    这里不用 matplotlib，是为了让项目在当前已有环境下直接运行。
-    points 中每项为 (bitrate, psnr, label)。
-    """
-
     width, height = 900, 620
     margin_left, margin_right = 90, 40
     margin_top, margin_bottom = 50, 90
@@ -138,8 +74,7 @@ def draw_rd_curve(points: Sequence[Tuple[float, float, str]], output_path: str |
     plot_bottom = height - margin_bottom
 
     def map_point(rate: float, quality: float) -> Tuple[int, int]:
-        """把 R-D 数据点映射到画布坐标。"""
-
+        # 把 R-D 数据点映射到画布坐标。
         x = plot_left + int((rate - min_r) / (max_r - min_r) * (plot_right - plot_left))
         y = plot_bottom - int((quality - min_p) / (max_p - min_p) * (plot_bottom - plot_top))
         return x, y

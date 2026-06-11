@@ -1,8 +1,7 @@
 """Socket based bitstream transmission helpers.
 
-网络传输部分对应项目要求第 8 步：
+网络传输部分：
 把 encoder 产生的 compressed image data 通过 socket 发送给 receiver。
-协议非常简单：
 1. sender 先发送 8 字节无符号整数，表示文件长度；
 2. sender 再发送 image.bit 的原始 bytes；
 3. receiver 按长度接收并写入本地文件。

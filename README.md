@@ -131,7 +131,7 @@ trans_results\rd_curve.png
 也可指定 CSV 和输出路径：
 
 ```bash
-python plot_rd_curve.py --csv trans_results\rd_results.csv --out trans_results\rd_curve.png
+python plot_rd_curve.py --csv results\rd_results.csv --out results\rd_curve.png
 ```
 
 ## 5. 单机快速验证
