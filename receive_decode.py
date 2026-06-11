@@ -20,7 +20,7 @@ def receive_decode_and_record(
 
     # 1. 先接收文件到最终比特流路径（取消临时文件中转）
     # 先读头部获取信息，再命名；这里沿用原逻辑：先存临时再改名（如需彻底优化可再改）
-    temp_bit = result_dir / f"_incoming.bit"
+    temp_bit = Path(result_dir) / "_incoming.bit"
     receive_file(temp_bit, host, port)
 
     # 2. 解析码流头部参数
