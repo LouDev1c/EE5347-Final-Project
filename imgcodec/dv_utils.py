@@ -20,7 +20,7 @@ def append_rd_row(
     result_dir: str | Path = RESULTS_DIR,
 ) -> Path:
 
-    csv_path = result_dir / "rd_results.csv"
+    csv_path = Path(result_dir) / f"rd_results.csv"
     write_header = not csv_path.exists()
 
     with csv_path.open("a", newline="", encoding="utf-8") as file:
