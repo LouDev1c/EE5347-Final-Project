@@ -1,4 +1,4 @@
-# Image and Video Compression and Network Communication Final Project
+# EE5347 Final Project
 
 本项目实现了课程 Final Project 要求的图像压缩、socket 传输、解码重构和 R-D 曲线评估流程。
 
