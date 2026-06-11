@@ -48,6 +48,7 @@ def imageEncoder(orgImageFileName: str, quantizationStepSize: float) -> float:
     # 第 3 步：用步长 q 对 DWT 系数量化。
     quantized = np.sign(coeffs) * np.floor(np.abs(coeffs) / q_step)
     quantized = quantized.astype(np.int32)
+    print(f"量化后非零系数数量: {np.count_nonzero(quantized)}")
 
     # 第 4 步：对最低频 LL 子带做预测。
     ll_h, ll_w = lowest_subband_size(quantized.shape, DEFAULT_LEVELS)
@@ -149,6 +150,7 @@ def imageDecoder(
 
     # 第 11 步：inverse quantization。
     coeffs = quantized.astype(np.float64) * q_step + np.sign(quantized) * (q_step / 2.0)
+    print(f"反量化后非零系数数量: {np.count_nonzero(coeffs)}")
 
     # 第 12 步：inverse DWT 重构图像。
     recon_img = idwt(coeffs, levels=levels)
