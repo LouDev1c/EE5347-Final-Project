@@ -89,7 +89,7 @@ def token_to_size(token: str) -> int:
     return int(token[len(SIZE_PREFIX):])
 
 
-# LL残差 光栅扫描
+# LL残差光栅扫描：从左到右从上到下存储Token和非零像素数值 (Z或者Sx)
 def scan_ll_residual(residual: np.ndarray) -> Tuple[List[str], List[int]]:
     tokens: List[str] = []
     amplitudes: List[int] = []
