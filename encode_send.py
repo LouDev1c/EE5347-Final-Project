@@ -1,6 +1,4 @@
 # 该程序用于压缩图像并自动发送给接收端
-
-
 import argparse
 
 from imgcodec.codec import imageEncoder

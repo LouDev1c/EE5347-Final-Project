@@ -1,11 +1,4 @@
-"""Prediction, raster scan, zero-tree scan, and inverse scan.
-
-扫描模块对应项目要求中的第 4、5、10 步：
-- 对最低频 LL 子带做预测；
-- LL 子带使用 raster scan；
-- 高频子带使用 zero-tree scan，并产生 zero、EZT、non-zero tokens；
-- 解码端根据同样的扫描顺序做 inverse scan.
-"""
+# scan 用于数据符号化 (E、Z、S)，便于下一步编码
 from dataclasses import dataclass
 from typing import Iterable, List, Sequence, Tuple
 from collections import deque
@@ -17,13 +10,12 @@ ZERO_TOKEN = "Z"
 EZT_TOKEN = "E"
 SIZE_PREFIX = "S"
 
-# 子带方向定义（对齐标准EZW：HL / LH / HH）
+# 子带方向定义
 ORIENTATIONS = ("HL", "LH", "HH")
 
-
+# 子带系数基本信息：所在级、所在方向、
 @dataclass(frozen=True)
 class SubbandPosition:
-    """表示一个高频子带系数在零树中的位置。"""
     level: int
     orientation: str
     row: int
@@ -35,9 +27,10 @@ def lowest_subband_size(shape: Tuple[int, int], levels: int) -> Tuple[int, int]:
     return shape[0] // (2 ** levels), shape[1] // (2 ** levels)
 
 
-# ===================== LL子带 DPCM 预测/逆预测（已用标准A+B-C，保留不动） =====================
+# 对最低频 LL 子带做 DPCM 预测，输出残差
+# 因为低频数值较大的分量多，所以用 A+B-C来推测某个自带系数对应的基准值
 def predict_ll_subband(ll: np.ndarray) -> np.ndarray:
-    """对最低频 LL 子带做 DPCM 预测，输出残差。"""
+    """。"""
     residual = np.zeros_like(ll, dtype=np.int32)
     h, w = ll.shape
     for r in range(h):
@@ -56,9 +49,8 @@ def predict_ll_subband(ll: np.ndarray) -> np.ndarray:
             residual[r, c] = ll[r, c] - pred
     return residual
 
-
+# 根据 DPCM 残差恢复最低频 LL 子带
 def inverse_predict_ll_subband(residual: np.ndarray) -> np.ndarray:
-    """根据 DPCM 残差恢复最低频 LL 子带。"""
     ll = np.zeros_like(residual, dtype=np.int32)
     h, w = residual.shape
     for r in range(h):
@@ -78,31 +70,27 @@ def inverse_predict_ll_subband(residual: np.ndarray) -> np.ndarray:
     return ll
 
 
-# ===================== Token 编解码工具函数 =====================
+# Token 编码 (Z、S)
 def value_to_token(value: int) -> Tuple[str, int | None]:
-    """整数系数转为扫描Token"""
     value = int(value)
     if value == 0:
         return ZERO_TOKEN, None
     size = abs(value).bit_length()
     return f"{SIZE_PREFIX}{size}", value
 
-
+# 判断是否为非零系数Token
 def token_is_nonzero(token: str) -> bool:
-    """判断是否为非零系数Token"""
     return token.startswith(SIZE_PREFIX)
 
-
+# 从S前缀Token提取长度
 def token_to_size(token: str) -> int:
-    """从S前缀Token提取长度"""
     if not token_is_nonzero(token):
         raise ValueError(f"Token {token!r} does not contain a non-zero size.")
     return int(token[len(SIZE_PREFIX):])
 
 
-# ===================== LL残差 光栅扫描/逆扫描 =====================
+# LL残差 光栅扫描
 def scan_ll_residual(residual: np.ndarray) -> Tuple[List[str], List[int]]:
-    """对 LL 残差做光栅扫描，输出 token 序列和非零幅值列表。"""
     tokens: List[str] = []
     amplitudes: List[int] = []
     for value in residual.ravel(order="C"):
@@ -114,7 +102,6 @@ def scan_ll_residual(residual: np.ndarray) -> Tuple[List[str], List[int]]:
 
 
 def inverse_scan_ll(tokens: Sequence[str], amplitudes: Iterable[int], ll_shape: Tuple[int, int]) -> np.ndarray:
-    """把 LL 的光栅 token 和幅值恢复为残差矩阵。"""
     residual = np.zeros(ll_shape, dtype=np.int32)
     amp_iter = iter(amplitudes)
     for index, token in enumerate(tokens):
@@ -127,7 +114,7 @@ def inverse_scan_ll(tokens: Sequence[str], amplitudes: Iterable[int], ll_shape: 
     return residual
 
 
-# ===================== 高频子带 坐标映射（核心修正：对齐标准HL/LH/HH） =====================
+# 高频子带映射
 def subband_bounds(shape: Tuple[int, int], level: int, orientation: str) -> Tuple[int, int, int, int]:
     """
     返回子带全局坐标 (r0, r1, c0, c1)
@@ -151,14 +138,13 @@ def subband_bounds(shape: Tuple[int, int], level: int, orientation: str) -> Tupl
     else:
         raise ValueError(f"Unknown orientation: {orientation}")
 
-
+# 子带局部坐标推理全局图像坐标
 def position_to_global(shape: Tuple[int, int], pos: SubbandPosition) -> Tuple[int, int]:
-    """局部坐标 → 全局图像坐标"""
     r0, _, c0, _ = subband_bounds(shape, pos.level, pos.orientation)
     return r0 + pos.row, c0 + pos.col
 
 
-# ===================== 高频位置遍历（对齐标准扫描顺序） =====================
+# 高频位置遍历（对齐标准扫描顺序）
 def iter_high_frequency_positions(shape: Tuple[int, int], levels: int) -> Iterable[SubbandPosition]:
     """
     零树标准遍历顺序：
@@ -175,9 +161,8 @@ def iter_high_frequency_positions(shape: Tuple[int, int], levels: int) -> Iterab
                     yield SubbandPosition(level, orient, r, c)
 
 
-# ===================== 父子节点 & 子树遍历（完全对齐标准EZW） =====================
+# 获取当前节点的直接子节点
 def descendants(pos: SubbandPosition) -> List[SubbandPosition]:
-    """获取当前节点的直接子节点（下一层同方向子带 2×2）"""
     # 最细层级无后代
     if pos.level <= 1:
         return []
@@ -190,9 +175,8 @@ def descendants(pos: SubbandPosition) -> List[SubbandPosition]:
         for dc in (0, 1)
     ]
 
-
+# 广度优先遍历整棵子树，整理这一个节点及其所有子孙节点的列表
 def subtree_positions(pos: SubbandPosition) -> List[SubbandPosition]:
-    """广度优先遍历整棵子树（保证顺序和扫描一致）"""
     result: List[SubbandPosition] = []
     q = deque(descendants(pos))
     while q:
@@ -201,12 +185,8 @@ def subtree_positions(pos: SubbandPosition) -> List[SubbandPosition]:
         q.extend(descendants(child))
     return result
 
-
+# 判断当前节点和整棵子树是否全部为 0
 def subtree_all_zero(coeffs: np.ndarray, pos: SubbandPosition) -> bool:
-    """
-    判断：当前节点 + 整棵子树 是否全部为 0
-    规则：最细层(level=1) 直接判定为False，禁止生成EZT零树根
-    """
     # 最细层无后代，不能作为零树根
     if pos.level <= 1:
         return False
@@ -225,10 +205,9 @@ def subtree_all_zero(coeffs: np.ndarray, pos: SubbandPosition) -> bool:
     return True
 
 
-# ===================== 高频零树扫描 / 逆扫描（核心逻辑重写，对齐标准） =====================
+# 高频零树扫描 / 逆扫描（
 def scan_high_frequency(coeffs: np.ndarray, levels: int) -> Tuple[List[str], List[int]]:
     """
-    高频零树扫描（EZT标准逻辑）
     - 非零值 → S + 幅值
     - 零值 + 整树全零 → E (EZT 零树根)，子树全部标记跳过
     - 零值 + 子树存在非零 → Z (普通零)
@@ -270,7 +249,6 @@ def inverse_scan_high_frequency(
     shape: Tuple[int, int],
     levels: int,
 ) -> np.ndarray:
-    """高频零树逆扫描，与编码逻辑严格对称"""
     coeffs = np.zeros(shape, dtype=np.int32)
     visited: set[SubbandPosition] = set()
     amp_iter = iter(amplitudes)

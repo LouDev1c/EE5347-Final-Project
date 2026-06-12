@@ -1,7 +1,4 @@
 # 该程序用于接收比特流并解码图像
-
-from __future__ import annotations
-
 import argparse
 from pathlib import Path
 
