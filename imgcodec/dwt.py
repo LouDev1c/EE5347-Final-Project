@@ -18,11 +18,25 @@ def dwt_1d(arr, H_0, H_1) -> np.ndarray:
     L = np.zeros((M, N_half), dtype=np.float64)
     H = np.zeros((M, N_half), dtype=np.float64)
 
-    #滤波和下采样
+    # -------------------------
+    # Step 1: Filtering
+    # -------------------------
+
+    low_filtered = np.zeros((M, N), dtype=np.float64)
+    high_filtered = np.zeros((M, N), dtype=np.float64)
+
     for k in range(5):
-        L += H_0[k] * padded[:, k: 2 * N_half + k: 2]
+        low_filtered += H_0[k] * padded[:, k:k + N]
+
     for k in range(3):
-        H += H_1[k] * padded[:, k + 2: 2 * N_half + k + 2: 2]
+        high_filtered += H_1[k] * padded[:, k + 2:k + 2 + N]
+
+    # -------------------------
+    # Step 2: Downsampling
+    # -------------------------
+
+    L = low_filtered[:, ::2]
+    H = high_filtered[:, ::2]
 
     # 水平拼接低频与高频部分
     return np.hstack((L, H))

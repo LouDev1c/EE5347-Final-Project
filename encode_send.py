@@ -1,6 +1,6 @@
 # 该程序用于压缩图像并自动发送给接收端
 
-from __future__ import annotations
+
 import argparse
 
 from imgcodec.codec import imageEncoder
