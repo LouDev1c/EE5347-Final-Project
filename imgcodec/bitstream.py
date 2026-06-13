@@ -10,7 +10,6 @@
 这样做的好处是：Huffman 编码确实用于 token 流，同时文件又容易检查和扩展。
 """
 
-from __future__ import annotations
 
 import json
 from pathlib import Path
