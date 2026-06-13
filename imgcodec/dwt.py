@@ -16,11 +16,13 @@ def dwt_1d(arr: np.ndarray, H_0: List[float], H_1: List[float]) -> np.ndarray:
     low_filtered = np.zeros((M, N), dtype=np.float64)
     high_filtered = np.zeros((M, N), dtype=np.float64)
 
+    # 滤波
     for k in range(len(H_0)):
         low_filtered += H_0_arr[k] * padded[:, k:k + N]
     for k in range(len(H_1)):
         high_filtered += H_1_arr[k] * padded[:, k + 2:k + 2 + N]
 
+    #下采样
     L = low_filtered[:, ::2]
     H = high_filtered[:, ::2]
 

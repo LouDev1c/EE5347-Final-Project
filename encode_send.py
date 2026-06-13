@@ -7,8 +7,8 @@ from imgcodec.network import send_file
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Encode image to bitstream, then send to receiver via TCP socket.")
-    parser.add_argument("--orgImageFileName",default="test_images/seagull.png",help="Path to the original image.")
-    parser.add_argument("--quantizationStepSize", default=128, type=float, help="Quantization step size q.")
+    parser.add_argument("--orgImageFileName",default="test_images/bab.png",help="Path to the original image.")
+    parser.add_argument("--quantizationStepSize", default=16, type=float, help="Quantization step size q.")
     parser.add_argument("--host", default="10.27.238.25", help="Receiver host IP.")
     parser.add_argument("--port", type=int, default=5001, help="Receiver port.")
 

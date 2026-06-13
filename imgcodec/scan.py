@@ -144,14 +144,8 @@ def position_to_global(shape: Tuple[int, int], pos: SubbandPosition) -> Tuple[in
     return r0 + pos.row, c0 + pos.col
 
 
-# 高频位置遍历（对齐标准扫描顺序）
+# 高频位置遍历，将信息保留在生成器当中
 def iter_high_frequency_positions(shape: Tuple[int, int], levels: int) -> Iterable[SubbandPosition]:
-    """
-    零树标准遍历顺序：
-    1. 从最粗层(levels) → 最细层(1)
-    2. 每层顺序：HL → LH → HH
-    3. 子带内部行优先光栅扫描
-    """
     for level in range(levels, 0, -1):
         sub_h = shape[0] // (2 ** level)
         sub_w = shape[1] // (2 ** level)
@@ -205,7 +199,7 @@ def subtree_all_zero(coeffs: np.ndarray, pos: SubbandPosition) -> bool:
     return True
 
 
-# 高频零树扫描 / 逆扫描（
+# 高频零树扫描 / 逆扫描
 def scan_high_frequency(coeffs: np.ndarray, levels: int) -> Tuple[List[str], List[int]]:
     """
     - 非零值 → S + 幅值
